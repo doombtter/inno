@@ -14,6 +14,7 @@ import {
   ListAdminProductsQueryDto,
   ProductPayloadDto,
 } from './dto/product-payload.dto';
+import { RevisionsService } from './revisions.service';
 
 const PRODUCT_SELECT = `
   p.id, p.barcode, p.name,
@@ -52,7 +53,10 @@ function rowToAdminProductDto(row: AdminProductRow): AdminProductDto {
 
 @Injectable()
 export class ProductsAdminService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly revisions: RevisionsService,
+  ) {}
 
   async list(
     q: ListAdminProductsQueryDto,
@@ -172,7 +176,11 @@ export class ProductsAdminService {
     return this.findById(rows[0]!.id);
   }
 
-  async update(id: string, dto: ProductPayloadDto): Promise<AdminProductDto> {
+  async update(
+    id: string,
+    dto: ProductPayloadDto,
+    actorId: string,
+  ): Promise<AdminProductDto> {
     const existing = await this.findById(id);
     await this.assertReferencesExist(dto.categoryId, dto.manufacturerId);
     this.validateKeyMetrics(dto.keyMetrics);
@@ -235,13 +243,18 @@ export class ProductsAdminService {
       ],
     );
 
-    return this.findById(id);
+    const updated = await this.findById(id);
+    await this.revisions.record(id, existing, updated, actorId);
+    return updated;
   }
 
   async updateStatus(
     id: string,
     status: 'pending' | 'approved' | 'rejected',
+    actorId: string,
   ): Promise<AdminProductDto> {
+    const before = await this.findById(id);
+    if (before.status === status) return before;
     const r = await this.db.query(
       `UPDATE products SET status = $1 WHERE id = $2`,
       [status, id],
@@ -249,7 +262,9 @@ export class ProductsAdminService {
     if (r.rowCount === 0) {
       throw new NotFoundException(`Product '${id}' not found`);
     }
-    return this.findById(id);
+    const after = await this.findById(id);
+    await this.revisions.record(id, before, after, actorId);
+    return after;
   }
 
   // ---- helpers ------------------------------------------------------------

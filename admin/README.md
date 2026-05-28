@@ -24,26 +24,30 @@ npm run lint              # ESLint
 `NEXT_PUBLIC_` 접두사라 브라우저 번들에 포함된다 — 비밀이 아니다. 진짜 비밀(어드민
 토큰)은 운영자가 로그인 화면에 손으로 붙여넣는다.
 
-## 인증 (`ADMIN_TOKEN`)
+## 인증 (계정 + JWT)
 
-백엔드의 `ADMIN_TOKEN` env로 보호된다. 어드민이 백엔드에 요청할 때마다
-`X-Admin-Token: <token>` 헤더를 동봉한다.
+이메일/비밀번호 로그인. 백엔드가 JWT를 발급하면 어드민이 `localStorage`에 보관하고
+이후 모든 요청에 `Authorization: Bearer <jwt>`로 동봉한다.
 
-흐름:
+### 첫 admin 계정
 
-1. 운영자가 `/login`에서 토큰 입력
-2. 토큰을 `localStorage.inno_admin_token`에 저장
-3. 가벼운 admin GET으로 토큰 유효성 확인 → 통과 시 `/products`로 이동
-4. 이후 모든 요청에 헤더 자동 첨부
+백엔드 `.env`에 `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD`를 넣고 서버를 한
+번 띄우면 users 테이블에 admin 행이 만들어진다. 첫 로그인 후 비밀번호는 SQL로 갱신.
 
-토큰 발급:
+### 흐름
 
-```bash
-openssl rand -hex 32   # 백엔드 .env의 ADMIN_TOKEN에 넣고, 같은 값을 운영자에게 공유
-```
+1. `/login`에서 이메일/비번 입력 → `POST /admin/auth/login` 호출
+2. 응답 `{token, user}`를 `localStorage`에 저장 (`inno_admin_token`, `inno_admin_user`)
+3. AuthGuard가 매 진입 시 `GET /admin/auth/me`로 토큰 유효성 검증. 401이면 자동
+   로그아웃 + 로그인 화면으로 이동
+4. NavBar에 현재 사용자 이름과 역할 배지 노출
 
-기기/브라우저별로 한 번만 붙여넣으면 된다 — 갱신/만료 없음. 토큰이 노출되면 백엔드
-`.env`의 값을 바꾸면 모든 세션이 무효화된다.
+### 역할
+
+- `admin` — 모든 admin 기능
+- `editor` — create + update + 제조사 추가까지. 상태 토글(승인/반려)은 admin만.
+  editor가 만든 제품은 자동으로 `pending` 상태로 들어간다. UI에서도 editor에게는
+  상태 버튼이 안 보인다.
 
 ## 화면
 
@@ -96,13 +100,24 @@ src/
     └── types.ts                 # 백엔드 응답 타입
 ```
 
+## 변경 이력
+
+수정 화면 좌측 패널에 "변경 이력" 카드가 자동 표시된다. 백엔드가 PUT과 상태 토글 시
+변경된 필드만 `product_revisions`에 INSERT하고, `/admin/products/:id/revisions`로
+최신순 정렬 후 반환한다.
+
+각 항목은 `{시각, 작업자 이름/이메일, 필드별 before → after}` 형태. 객체/배열은
+`{…}` / `[N개]`로 요약 (전체 diff는 DB에 그대로 들어있음).
+
 ## 검증 체크리스트
 
 수동으로 한 번씩:
 
-- [ ] `/login`에 잘못된 토큰 → 빨간 메시지, 진입 차단
+- [ ] `/login`에서 잘못된 비번 → 빨간 메시지, 진입 차단
 - [ ] `/products`에서 카테고리/상태 필터 동작
 - [ ] `/products/new`로 햄 카테고리 제품 등록 → 목록 + 모바일 공개 API에 즉시 노출
 - [ ] 주스 카테고리 선택 시 boolean 체크박스 3개 노출 확인
-- [ ] 제조사 콤보박스에서 없는 이름 입력 → "새 제조사로 등록" 버튼으로 즉석 생성
-- [ ] 수정 화면에서 상태 버튼으로 pending ↔ approved 토글
+- [ ] 제조사 콤보박스에서 없는 이름 입력 → "새 제조사로 등록"으로 즉석 생성
+- [ ] admin 계정으로 수정 화면에서 상태 버튼으로 pending ↔ approved 토글
+- [ ] editor 계정으로 같은 화면 진입 → 상태 버튼이 안 보이고 안내 문구만 노출
+- [ ] PUT 후 좌측 변경 이력 카드에 새 행 등장

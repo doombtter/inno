@@ -15,9 +15,11 @@ import { KeyMetricsFields } from './key-metrics-fields';
 import { useCategories } from '@/hooks/use-categories';
 import {
   useCreateProduct,
+  useRevisions,
   useUpdateProduct,
   useUpdateStatus,
 } from '@/hooks/use-products';
+import { useCurrentUser } from './auth-guard';
 import type { AdminProduct, ProductPayload, ProductStatus } from '@/lib/types';
 import { ApiError } from '@/lib/api';
 
@@ -127,6 +129,8 @@ export function ProductForm({ initial }: Props) {
   const create = useCreateProduct();
   const update = useUpdateProduct(initial?.id ?? '');
   const statusMut = useUpdateStatus(initial?.id ?? '');
+  const user = useCurrentUser();
+  const canToggleStatus = user?.role === 'admin';
 
   // For edits, the API returns category.slug only. Resolve to id once the
   // category list arrives.
@@ -195,7 +199,7 @@ export function ProductForm({ initial }: Props) {
       keyMetrics: state.keyMetrics,
       productImages: state.productImages.filter((u) => u.trim()),
       labelImages: state.labelImages.filter((u) => u.trim()),
-      status: state.status,
+      status: canToggleStatus ? state.status : 'pending',
     };
 
     try {
@@ -260,34 +264,42 @@ export function ProductForm({ initial }: Props) {
               상태
               <StatusBadge status={initial.status} />
             </h2>
-            <div className="flex gap-2">
-              {(['pending', 'approved', 'rejected'] as ProductStatus[]).map(
-                (s) => (
-                  <Button
-                    key={s}
-                    type="button"
-                    size="sm"
-                    variant={initial.status === s ? 'primary' : 'secondary'}
-                    onClick={async () => {
-                      try {
-                        await statusMut.mutateAsync(s);
-                      } catch (e) {
-                        setError((e as Error).message);
-                      }
-                    }}
-                    disabled={pending || initial.status === s}
-                  >
-                    {s === 'pending'
-                      ? '검수 대기'
-                      : s === 'approved'
-                        ? '노출'
-                        : '반려'}
-                  </Button>
-                ),
-              )}
-            </div>
+            {canToggleStatus ? (
+              <div className="flex gap-2">
+                {(['pending', 'approved', 'rejected'] as ProductStatus[]).map(
+                  (s) => (
+                    <Button
+                      key={s}
+                      type="button"
+                      size="sm"
+                      variant={initial.status === s ? 'primary' : 'secondary'}
+                      onClick={async () => {
+                        try {
+                          await statusMut.mutateAsync(s);
+                        } catch (e) {
+                          setError((e as Error).message);
+                        }
+                      }}
+                      disabled={pending || initial.status === s}
+                    >
+                      {s === 'pending'
+                        ? '검수 대기'
+                        : s === 'approved'
+                          ? '노출'
+                          : '반려'}
+                    </Button>
+                  ),
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">
+                상태 변경(승인/반려)은 admin 역할만 수행할 수 있습니다.
+              </p>
+            )}
           </div>
         )}
+
+        {initial && <RevisionsPanel productId={initial.id} />}
       </aside>
 
       <section className="space-y-4">
@@ -491,21 +503,25 @@ export function ProductForm({ initial }: Props) {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-md p-4 space-y-3">
-          <h2 className="text-sm font-medium">최초 상태</h2>
-          <Select
-            value={state.status}
-            onChange={(e) => set('status', e.target.value as ProductStatus)}
-          >
-            <option value="approved">바로 노출 (approved)</option>
-            <option value="pending">검수 대기 (pending)</option>
-          </Select>
-          {initial && (
-            <p className="text-xs text-gray-500">
-              저장 후에도 좌측 패널의 상태 버튼으로 변경할 수 있습니다.
-            </p>
-          )}
-        </div>
+        {!initial && (
+          <div className="bg-white border border-gray-200 rounded-md p-4 space-y-3">
+            <h2 className="text-sm font-medium">최초 상태</h2>
+            {canToggleStatus ? (
+              <Select
+                value={state.status}
+                onChange={(e) => set('status', e.target.value as ProductStatus)}
+              >
+                <option value="approved">바로 노출 (approved)</option>
+                <option value="pending">검수 대기 (pending)</option>
+              </Select>
+            ) : (
+              <p className="text-xs text-gray-500">
+                editor 권한은 검수 대기(pending) 상태로만 등록할 수 있습니다.
+                admin이 검수 후 노출로 전환합니다.
+              </p>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
@@ -528,6 +544,59 @@ export function ProductForm({ initial }: Props) {
       </section>
     </form>
   );
+}
+
+function RevisionsPanel({ productId }: { productId: string }) {
+  const revisions = useRevisions(productId);
+  return (
+    <div className="bg-white border border-gray-200 rounded-md p-4">
+      <h2 className="text-sm font-medium mb-3">변경 이력</h2>
+      {revisions.isLoading && (
+        <p className="text-xs text-gray-500">불러오는 중…</p>
+      )}
+      {revisions.data && revisions.data.length === 0 && (
+        <p className="text-xs text-gray-500">아직 수정 기록이 없습니다.</p>
+      )}
+      <ol className="space-y-3">
+        {revisions.data?.map((r) => (
+          <li key={r.id} className="text-xs">
+            <div className="flex items-center gap-2 text-gray-500">
+              <span>{new Date(r.createdAt).toLocaleString('ko-KR')}</span>
+              <span>·</span>
+              <span>{r.changedBy?.name ?? '알 수 없음'}</span>
+              {r.changedBy?.email && (
+                <span className="text-gray-400">({r.changedBy.email})</span>
+              )}
+            </div>
+            <ul className="mt-1 space-y-0.5">
+              {Object.entries(r.changes).map(([field, [before, after]]) => (
+                <li key={field} className="flex gap-2">
+                  <span className="text-gray-600 font-medium min-w-[80px]">
+                    {field}
+                  </span>
+                  <span className="text-gray-400">
+                    {summarizeValue(before)}
+                  </span>
+                  <span className="text-gray-300">→</span>
+                  <span className="text-gray-900">
+                    {summarizeValue(after)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function summarizeValue(v: unknown): string {
+  if (v === null || v === undefined) return '∅';
+  if (typeof v === 'string') return `“${v}”`;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return `[${v.length}개]`;
+  return '{…}';
 }
 
 function validate(s: FormState): string | null {

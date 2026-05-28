@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api, ApiError } from '@/lib/api';
-import { setToken } from '@/lib/auth';
+import { setSession, type AdminUser } from '@/lib/auth';
 
 export default function LoginPage() {
   return (
@@ -23,7 +23,8 @@ function LoginForm() {
   const params = useSearchParams();
   const from = params.get('from') || '/products';
 
-  const [token, setTokenInput] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,13 +32,16 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setToken(token);
     try {
-      await api('/admin/manufacturers', { query: { limit: 1 } });
+      const res = await api<{ token: string; user: AdminUser }>(
+        '/admin/auth/login',
+        { method: 'POST', body: { email, password } },
+      );
+      setSession(res.token, res.user);
       router.replace(from);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError('토큰이 올바르지 않습니다');
+        setError('이메일 또는 비밀번호가 올바르지 않습니다');
       } else {
         setError('서버에 연결할 수 없습니다');
       }
@@ -49,24 +53,36 @@ function LoginForm() {
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
         <h1 className="text-xl font-semibold mb-1">인노 어드민</h1>
-        <p className="text-sm text-gray-500 mb-6">운영자 토큰을 입력하세요</p>
+        <p className="text-sm text-gray-500 mb-6">운영자 계정으로 로그인</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="token" required>
-              ADMIN_TOKEN
-            </Label>
+            <Label htmlFor="email" required>이메일</Label>
             <Input
-              id="token"
-              type="password"
+              id="email"
+              type="email"
+              autoComplete="email"
               autoFocus
-              value={token}
-              onChange={(e) => setTokenInput(e.target.value)}
-              placeholder="공유받은 토큰"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="password" required>비밀번호</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={!token || loading} className="w-full">
-            {loading ? '확인 중…' : '들어가기'}
+          <Button
+            type="submit"
+            disabled={!email || !password || loading}
+            className="w-full"
+          >
+            {loading ? '확인 중…' : '로그인'}
           </Button>
         </form>
       </div>

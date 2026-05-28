@@ -32,7 +32,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     Accept: 'application/json',
   };
   const token = getToken();
-  if (token) headers['X-Admin-Token'] = token;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
 
   const res = await fetch(url.toString(), {

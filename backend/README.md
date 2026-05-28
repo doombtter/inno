@@ -20,10 +20,17 @@ npm run typecheck        # tsc --noEmit
 | `DATABASE_URL` | Y | `postgres://postgres:postgres@127.0.0.1:5432/inno` |
 | `PORT` | N (기본 3000) | `3000` |
 | `CORS_ORIGINS` | N (기본 `*`) | `http://localhost:3001` |
-| `ADMIN_TOKEN` | Y (admin 사용 시) | `openssl rand -hex 32` |
+| `JWT_SECRET` | Y | `openssl rand -hex 32` |
+| `JWT_TTL` | N (기본 `7d`) | `12h`, `30d` |
+| `BOOTSTRAP_ADMIN_EMAIL` | 첫 셋업 시 | `admin@inno.local` |
+| `BOOTSTRAP_ADMIN_PASSWORD` | 첫 셋업 시 | `change-me-on-first-login` |
+| `BOOTSTRAP_ADMIN_NAME` | N | `Admin` |
 
-`ADMIN_TOKEN`이 비어있거나 8자 미만이면 `/admin/*` 라우트가 통째로 401을 반환한다 —
-프로덕션에서 잊고 안 채우는 사고를 막기 위해 의도된 동작이다.
+`JWT_SECRET`이 16자 미만이면 서버가 시작 시 던진다 — 프로덕션에서 잊고 안 채우는
+사고를 막기 위해 의도된 동작이다.
+
+`BOOTSTRAP_ADMIN_*`는 users 테이블에 admin이 0명일 때만 동작한다. 첫 로그인 후
+SQL로 비번을 갈고 env에서 지워도 된다.
 
 ## 엔드포인트
 
@@ -48,17 +55,28 @@ JSONB 경로 주입 불가.
 
 ### Admin (어드민)
 
-전부 `X-Admin-Token` 필요.
+POST `/admin/auth/login`을 제외한 모든 admin 라우트는 `Authorization: Bearer <jwt>`
+헤더가 필요하다 (또는 호환용 `X-Admin-Token: <jwt>`도 받음).
 
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| GET | `/admin/products` | `?q=&category=&status=&page=&size=`. status=`any`로 전 상태 |
-| GET | `/admin/products/:id` | 상세 (pending도 조회 가능) |
-| POST | `/admin/products` | 신규 등록 |
-| PUT | `/admin/products/:id` | 전체 업데이트 |
-| PATCH | `/admin/products/:id/status` | `{status: 'pending'\|'approved'\|'rejected'}` |
-| GET | `/admin/manufacturers?q=` | 자동완성용 검색 |
-| POST | `/admin/manufacturers` | 신규 제조사 |
+| 메서드 | 경로 | 역할 | 설명 |
+|---|---|---|---|
+| POST | `/admin/auth/login` | 누구나 | `{email, password}` → `{token, user}` |
+| GET | `/admin/auth/me` | 로그인 | 현재 사용자 (DB에서 새로 읽음) |
+| GET | `/admin/products` | 로그인 | `?q=&category=&status=&page=&size=` |
+| GET | `/admin/products/:id` | 로그인 | 상세 (pending 포함) |
+| GET | `/admin/products/:id/revisions` | 로그인 | 변경 이력 (최신순) |
+| POST | `/admin/products` | 로그인 | 신규 등록 |
+| PUT | `/admin/products/:id` | 로그인 | 전체 업데이트 (자동으로 revisions 적재) |
+| PATCH | `/admin/products/:id/status` | **admin** | 노출/검수 대기/반려 전환 |
+| GET | `/admin/manufacturers?q=` | 로그인 | 자동완성 검색 |
+| POST | `/admin/manufacturers` | 로그인 | 신규 제조사 |
+
+역할 정책:
+- `admin` — 모든 admin 라우트
+- `editor` — create/update/제조사 추가 OK, status PATCH는 403
+
+PUT과 status PATCH는 변경된 필드만 `product_revisions`에 INSERT한다 (changed_by =
+JWT의 sub). 변경 없을 시 INSERT 생략.
 
 POST/PUT 페이로드는 `src/admin/dto/product-payload.dto.ts`의 `ProductPayloadDto`와
 같다. `keyMetrics`는 자유형(Record<string, number\|boolean>)이지만 서비스가 키 형식과
@@ -89,7 +107,8 @@ src/
 ├── products/             # /api/products/*, /api/categories/:slug/products
 ├── insights/             # /api/content/insights
 ├── product-requests/     # POST /api/products/requests
-└── admin/                # /api/admin/* (AdminTokenGuard 적용)
+├── auth/                 # JWT 발급/검증, users 부트스트랩, /admin/auth/*
+└── admin/                # /api/admin/* (JwtAuthGuard + Roles 데코레이터)
 ```
 
 ## 검증
@@ -101,7 +120,9 @@ src/
 # 헬스 체크
 curl http://localhost:3000/api/categories | jq
 
-# admin
-TOKEN=$(grep ^ADMIN_TOKEN .env | cut -d= -f2)
-curl -H "X-Admin-Token: $TOKEN" http://localhost:3000/api/admin/products
+# admin: 로그인 → 토큰 → 사용
+TOKEN=$(curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"email":"admin@inno.local","password":"hunter2"}' \
+  http://localhost:3000/api/admin/auth/login | jq -r .token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/admin/products | jq
 ```

@@ -75,6 +75,15 @@ export interface Paged<T> {
   size: number;
 }
 
+export interface RevisionEntry {
+  id: string;
+  productId: string;
+  changedBy: { id: string; name: string; email: string } | null;
+  changes: Record<string, [unknown, unknown]>;
+  reason: string | null;
+  createdAt: string;
+}
+
 // Payload sent to POST/PUT /api/admin/products
 export interface ProductPayload {
   barcode?: string;

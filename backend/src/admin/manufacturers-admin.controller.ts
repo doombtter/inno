@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { AdminTokenGuard } from './admin-token.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   CreateManufacturerDto,
   ListManufacturersQueryDto,
@@ -9,7 +9,7 @@ import {
   ManufacturersAdminService,
 } from './manufacturers-admin.service';
 
-@UseGuards(AdminTokenGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('admin/manufacturers')
 export class ManufacturersAdminController {
   constructor(private readonly service: ManufacturersAdminService) {}

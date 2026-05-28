@@ -43,9 +43,10 @@ sudo -u postgres psql -d inno -f db/seeds/0003_sample_products.sql
 
 ```bash
 cd backend
-cp .env.example .env       # DATABASE_URL, ADMIN_TOKEN 수정
+cp .env.example .env       # DATABASE_URL, JWT_SECRET, BOOTSTRAP_ADMIN_* 수정
 npm install
 npm run start:dev          # http://localhost:3000/api
+# 첫 시작 시 BOOTSTRAP_ADMIN_EMAIL/PASSWORD로 admin 계정이 만들어짐
 ```
 
 ### 3. 어드민 (port 3001)
@@ -55,7 +56,7 @@ cd admin
 cp .env.example .env.local
 npm install
 npm run dev -- -p 3001     # http://localhost:3001/login
-# 브라우저에서 ADMIN_TOKEN 입력 → 제품 CRUD
+# 백엔드 BOOTSTRAP_ADMIN_EMAIL/PASSWORD로 로그인 → 제품 CRUD
 ```
 
 ### 4. 모바일

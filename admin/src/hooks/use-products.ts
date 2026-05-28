@@ -9,6 +9,7 @@ import type {
   Paged,
   ProductPayload,
   ProductStatus,
+  RevisionEntry,
 } from '@/lib/types';
 
 export interface ProductListFilter {
@@ -66,6 +67,7 @@ export function useUpdateProduct(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-products'] });
       qc.invalidateQueries({ queryKey: ['admin-product', id] });
+      qc.invalidateQueries({ queryKey: ['admin-product-revisions', id] });
     },
   });
 }
@@ -81,6 +83,16 @@ export function useUpdateStatus(id: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-products'] });
       qc.invalidateQueries({ queryKey: ['admin-product', id] });
+      qc.invalidateQueries({ queryKey: ['admin-product-revisions', id] });
     },
+  });
+}
+
+export function useRevisions(id: string | undefined) {
+  return useQuery({
+    queryKey: ['admin-product-revisions', id],
+    queryFn: () =>
+      api<RevisionEntry[]>(`/admin/products/${id!}/revisions`),
+    enabled: !!id,
   });
 }

@@ -6,11 +6,13 @@ import { ProductsModule } from './products/products.module';
 import { InsightsModule } from './insights/insights.module';
 import { ProductRequestsModule } from './product-requests/product-requests.module';
 import { AdminModule } from './admin/admin.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    AuthModule,
     CategoriesModule,
     ProductsModule,
     InsightsModule,
