@@ -109,6 +109,7 @@ export function rowToCategoryDto(row: CategoryRow): CategoryDto {
   const schema = row.key_metrics_schema ?? {};
   const km = schema.key_metric ?? {};
   return {
+    id: row.id,
     slug: row.slug,
     name: row.name,
     keyMetric: {

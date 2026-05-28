@@ -58,6 +58,7 @@ export interface CategorySortableField {
 }
 
 export interface CategoryDto {
+  id: string;
   slug: string;
   name: string;
   keyMetric: CategoryKeyMetric;
