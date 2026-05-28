@@ -24,10 +24,10 @@ export function NavBar() {
             제품
           </Link>
           <Link
-            href="/products/new"
+            href="/insights"
             className="text-gray-700 hover:text-gray-900"
           >
-            신규 등록
+            인사이트
           </Link>
           {user && (
             <span className="text-xs text-gray-500 ml-2">

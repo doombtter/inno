@@ -60,3 +60,42 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+/// Multipart file upload to the admin uploads endpoint. Returns the URL the
+/// backend assigns the file (already absolute, ready to drop into a thumbnail
+/// or product_images field).
+export async function uploadFile(file: File): Promise<{
+  url: string;
+  size: number;
+  mimetype: string;
+}> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const form = new FormData();
+  form.append('file', file);
+
+  const res = await fetch(`${API_BASE}/api/admin/uploads`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+  if (!res.ok) {
+    let payload: unknown;
+    try {
+      payload = await res.json();
+    } catch {
+      // ignore
+    }
+    const message =
+      (payload as { message?: string | string[] } | undefined)?.message ??
+      res.statusText;
+    throw new ApiError(
+      res.status,
+      Array.isArray(message) ? message.join(', ') : message,
+      payload,
+    );
+  }
+  return res.json();
+}

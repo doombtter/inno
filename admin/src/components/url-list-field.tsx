@@ -2,6 +2,7 @@
 
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { ImageUploader } from './image-uploader';
 
 interface Props {
   value: string[];
@@ -23,8 +24,12 @@ export function UrlListField({ value, onChange, max = 5, label }: Props) {
         <div key={i} className="flex gap-2 items-start">
           <Input
             value={url}
-            placeholder="https://..."
+            placeholder="https://... 또는 업로드"
             onChange={(e) => update(i, e.target.value)}
+          />
+          <ImageUploader
+            label="업로드"
+            onUploaded={(uploaded) => update(i, uploaded)}
           />
           <Button
             type="button"

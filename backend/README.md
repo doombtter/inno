@@ -25,6 +25,8 @@ npm run typecheck        # tsc --noEmit
 | `BOOTSTRAP_ADMIN_EMAIL` | 첫 셋업 시 | `admin@inno.local` |
 | `BOOTSTRAP_ADMIN_PASSWORD` | 첫 셋업 시 | `change-me-on-first-login` |
 | `BOOTSTRAP_ADMIN_NAME` | N | `Admin` |
+| `UPLOAD_DIR` | N (기본 `./uploads`) | `/var/inno/uploads` |
+| `PUBLIC_BASE_URL` | N | `https://api.inno.example` (업로드 응답 URL) |
 
 `JWT_SECRET`이 16자 미만이면 서버가 시작 시 던진다 — 프로덕션에서 잊고 안 채우는
 사고를 막기 위해 의도된 동작이다.
@@ -70,6 +72,13 @@ POST `/admin/auth/login`을 제외한 모든 admin 라우트는 `Authorization: 
 | PATCH | `/admin/products/:id/status` | **admin** | 노출/검수 대기/반려 전환 |
 | GET | `/admin/manufacturers?q=` | 로그인 | 자동완성 검색 |
 | POST | `/admin/manufacturers` | 로그인 | 신규 제조사 |
+| GET | `/admin/insights` | 로그인 | `?q=&status=draft\|published\|any` |
+| GET | `/admin/insights/:id` | 로그인 | 상세 |
+| POST | `/admin/insights` | 로그인 | 신규 인사이트 (draft로 시작) |
+| PUT | `/admin/insights/:id` | 로그인 | 전체 업데이트 |
+| PATCH | `/admin/insights/:id/publish` | **admin** | `{publishedAt: ISO\|null}` |
+| DELETE | `/admin/insights/:id` | **admin** | 삭제 |
+| POST | `/admin/uploads` | 로그인 | multipart `file` 필드, image/jpeg/png/webp/gif ≤5MB |
 
 역할 정책:
 - `admin` — 모든 admin 라우트
@@ -108,7 +117,8 @@ src/
 ├── insights/             # /api/content/insights
 ├── product-requests/     # POST /api/products/requests
 ├── auth/                 # JWT 발급/검증, users 부트스트랩, /admin/auth/*
-└── admin/                # /api/admin/* (JwtAuthGuard + Roles 데코레이터)
+├── admin/                # /api/admin/{products,manufacturers,insights}/* + revisions
+└── uploads/              # /api/admin/uploads (multer) + 정적 /api/uploads/*
 ```
 
 ## 검증

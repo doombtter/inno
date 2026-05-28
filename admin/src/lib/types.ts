@@ -75,6 +75,37 @@ export interface Paged<T> {
   size: number;
 }
 
+export interface AdminInsight {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  thumbnail: string | null;
+  bodyMarkdown: string;
+  relatedProductIds: string[];
+  categorySlug: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InsightPayload {
+  slug: string;
+  title: string;
+  subtitle?: string;
+  thumbnail?: string;
+  bodyMarkdown: string;
+  relatedProductIds: string[];
+  categorySlug?: string | null;
+  publishedAt?: string | null;
+}
+
+export interface UploadResult {
+  url: string;
+  size: number;
+  mimetype: string;
+}
+
 export interface RevisionEntry {
   id: string;
   productId: string;
